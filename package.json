@@ -1,0 +1,37 @@
+{
+  "name": "agent-board",
+  "version": "0.1.0",
+  "description": "Multi-agent task management board with Kanban dashboard, REST API, and MCP server",
+  "main": "dist/index.js",
+  "bin": {
+    "agent-board": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "mcp": "node dist/mcp-server.js",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "mcp",
+    "kanban",
+    "agent",
+    "multi-agent",
+    "task-management"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "express": "^4.21.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.1",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.2.2",
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18"
+  }
+}

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Board</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1><span class="logo"></span> Agent Board</h1>
+    <div class="header-actions">
+      <div class="tabs" id="viewTabs">
+        <button class="tab active" data-view="board">Board</button>
+        <button class="tab" data-view="agents">Agents</button>
+        <button class="tab" data-view="stats">Stats</button>
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">&#9790;</button>
+    </div>
+  </header>
+
+  <div class="project-bar" id="projectBar">
+    <select id="projectSelect"><option value="">Loading...</option></select>
+    <select id="agentFilter"><option value="">All Agents</option></select>
+    <button id="newProjectBtn">+ Project</button>
+    <button id="newTaskBtn">+ Task</button>
+  </div>
+
+  <!-- Kanban view -->
+  <div class="board" id="boardView"></div>
+
+  <!-- Agents view -->
+  <div class="agent-grid hidden" id="agentsView"></div>
+
+  <!-- Stats view -->
+  <div class="stats-view hidden" id="statsView"></div>
+
+  <!-- Task detail panel -->
+  <div class="detail-panel" id="detailPanel">
+    <button class="btn" id="closeDetail" style="float:right">&#x2715;</button>
+    <div id="detailContent"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Status</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --accent: #6366f1;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --review: #a855f7;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .header p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* Progress */
+    .progress-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .progress-label {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .progress-pct {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 12px;
+      background: var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--success));
+      border-radius: 6px;
+      transition: width 0.5s ease;
+    }
+
+    .progress-detail {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Summary cards */
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .summary-card .num {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .summary-card .label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    .num-todo { color: var(--accent); }
+    .num-doing { color: var(--warning); }
+    .num-review { color: var(--review); }
+    .num-done { color: var(--success); }
+
+    /* Task columns */
+    .columns-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .col-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .col-header {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .col-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .col-body {
+      padding: 8px;
+      min-height: 40px;
+    }
+
+    .task-item {
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      background: var(--bg);
+      font-size: 13px;
+    }
+
+    .task-item:last-child { margin-bottom: 0; }
+
+    .task-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .task-desc {
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .task-meta {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    .tag-priority-urgent { background: #fef2f2; color: #dc2626; }
+    .tag-priority-high { background: #fff7ed; color: #ea580c; }
+    .tag-priority-medium { background: #fffbeb; color: #d97706; }
+    .tag-priority-low { background: #f0fdf4; color: #16a34a; }
+    .tag-member { background: #f0f0ff; color: var(--accent); }
+
+    .empty-col {
+      text-align: center;
+      padding: 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 16px 0;
+    }
+
+    .footer .update-time { font-weight: 500; }
+
+    .loading {
+      text-align: center;
+      padding: 48px;
+      color: var(--text-muted);
+    }
+
+    .error {
+      text-align: center;
+      padding: 48px;
+      color: var(--danger);
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .container { padding: 16px 12px; }
+      .header h1 { font-size: 20px; }
+      .columns-grid { grid-template-columns: 1fr; }
+      .summary { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="app">
+    <div class="loading">Loading project status...</div>
+  </div>
+
+  <script>
+  (function () {
+    const projectId = window.location.pathname.split("/").pop();
+    const appEl = document.getElementById("app");
+
+    function esc(str) {
+      if (!str) return "";
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    const COL_CONFIG = {
+      backlog: { label: "Backlog", color: "#94a3b8" },
+      todo: { label: "To Do", color: "#6366f1" },
+      doing: { label: "In Progress", color: "#f59e0b" },
+      review: { label: "In Review", color: "#a855f7" },
+      done: { label: "Completed", color: "#22c55e" },
+      failed: { label: "Needs Attention", color: "#ef4444" },
+    };
+
+    const VISIBLE_COLS = ["todo", "doing", "review", "done"];
+
+    function renderTask(t) {
+      const priorityTag = `<span class="tag tag-priority-${t.priority}">${t.priority}</span>`;
+      const memberTag = t.teamMember !== "Unassigned" ? `<span class="tag tag-member">${esc(t.teamMember)}</span>` : "";
+      const tags = (t.tags || []).map(tag => `<span class="tag" style="background:#f1f5f9;color:#475569">${esc(tag)}</span>`).join("");
+
+      return `<div class="task-item">
+        <div class="task-title">${esc(t.title)}</div>
+        ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ""}
+        <div class="task-meta">${priorityTag}${memberTag}${tags}</div>
+      </div>`;
+    }
+
+    function render(data) {
+      const { project, tasks, progress, lastUpdated } = data;
+
+      // Count by status
+      const counts = {};
+      for (const t of tasks) {
+        counts[t.status] = (counts[t.status] || 0) + 1;
+      }
+
+      const summaryHtml = `
+        <div class="summary">
+          <div class="summary-card"><div class="num num-todo">${counts.todo || 0}</div><div class="label">To Do</div></div>
+          <div class="summary-card"><div class="num num-doing">${counts.doing || 0}</div><div class="label">In Progress</div></div>
+          <div class="summary-card"><div class="num num-review">${counts.review || 0}</div><div class="label">In Review</div></div>
+          <div class="summary-card"><div class="num num-done">${counts.done || 0}</div><div class="label">Completed</div></div>
+        </div>`;
+
+      const columnsHtml = VISIBLE_COLS.map(col => {
+        const cfg = COL_CONFIG[col];
+        const colTasks = tasks.filter(t => t.status === col);
+        const body = colTasks.length
+          ? colTasks.map(renderTask).join("")
+          : `<div class="empty-col">No tasks</div>`;
+        return `<div class="col-section">
+          <div class="col-header"><span class="col-dot" style="background:${cfg.color}"></span>${cfg.label} (${colTasks.length})</div>
+          <div class="col-body">${body}</div>
+        </div>`;
+      }).join("");
+
+      const updatedStr = new Date(lastUpdated).toLocaleString();
+
+      appEl.innerHTML = `
+        <div class="header">
+          <h1>${esc(project.name)}</h1>
+          ${project.description ? `<p>${esc(project.description)}</p>` : ""}
+        </div>
+
+        <div class="progress-section">
+          <div class="progress-header">
+            <span class="progress-label">Overall Progress</span>
+            <span class="progress-pct">${progress.percentage}%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:${progress.percentage}%"></div>
+          </div>
+          <div class="progress-detail">
+            <span>${progress.done} of ${progress.total} tasks completed</span>
+            <span>${progress.total - progress.done} remaining</span>
+          </div>
+        </div>
+
+        ${summaryHtml}
+
+        <div class="columns-grid">${columnsHtml}</div>
+
+        <div class="footer">
+          Last updated: <span class="update-time">${updatedStr}</span>
+        </div>
+      `;
+    }
+
+    async function load() {
+      try {
+        const res = await fetch("/api/client/" + projectId);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Failed to load" }));
+          appEl.innerHTML = `<div class="error">${esc(err.error || "Project not found or client view not enabled.")}</div>`;
+          return;
+        }
+        const data = await res.json();
+        render(data);
+      } catch (e) {
+        appEl.innerHTML = `<div class="error">Failed to load project status. Please try again later.</div>`;
+      }
+    }
+
+    load();
+    setInterval(load, 10000);
+  })();
+  </script>
+</body>
+</html>

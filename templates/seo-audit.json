@@ -1,0 +1,42 @@
+[
+  {
+    "ref": "crawl",
+    "title": "Crawl & Technical Audit",
+    "description": "Run full site crawl, check indexation, sitemap, robots.txt, page speed, mobile-friendliness",
+    "assignee": "research-agent",
+    "priority": "high",
+    "tags": ["seo", "technical"],
+    "inputPath": "projects/{project}/site-url.txt",
+    "outputPath": "projects/{project}/audit/technical-audit.md"
+  },
+  {
+    "ref": "content",
+    "title": "Content & On-Page Audit",
+    "description": "Analyze titles, metas, H1s, content quality, keyword density, internal linking",
+    "assignee": "content-creator",
+    "priority": "high",
+    "tags": ["seo", "content"],
+    "inputPath": "projects/{project}/audit/technical-audit.md",
+    "outputPath": "projects/{project}/audit/content-audit.md"
+  },
+  {
+    "ref": "backlinks",
+    "title": "Backlink & Authority Analysis",
+    "description": "Analyze backlink profile, referring domains, anchor text distribution, toxic links",
+    "assignee": "research-agent",
+    "priority": "medium",
+    "tags": ["seo", "backlinks"],
+    "outputPath": "projects/{project}/audit/backlinks-audit.md"
+  },
+  {
+    "ref": "report",
+    "title": "Compile SEO Audit Report",
+    "description": "Synthesize all audit findings into a prioritized action plan with quick wins and long-term recommendations",
+    "assignee": "agency",
+    "priority": "high",
+    "tags": ["seo", "report"],
+    "inputPath": "projects/{project}/audit/",
+    "outputPath": "projects/{project}/audit/seo-audit-report.md",
+    "requiresReview": true
+  }
+]
