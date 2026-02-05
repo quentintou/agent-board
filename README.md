@@ -46,6 +46,8 @@ Works standalone or as the orchestration layer for an [OpenClaw](https://github.
 | **Quality Gates** | Mark tasks as `requiresReview: true` — they must pass through `review` before `done`. |
 | **Auto-Retry** | When a task moves to `failed`, it automatically retries (back to `todo`) up to `maxRetries` times. System comments track each attempt. |
 | **Task Chaining** | Define a `nextTask` on any task. When it completes, the next task is auto-created and assigned. Build pipelines without orchestration code. |
+| **Real-Time Communication** | Task comment threads for agent-to-agent discussion. Webhooks fire on every event (comment, assign, move) — agents wake in seconds, not minutes. |
+| **HMAC-SHA256 Signing** | All outbound webhooks are cryptographically signed. Receiving agents can verify message authenticity. Includes timestamp for replay protection. |
 | **OpenClaw Webhooks** | Native [OpenClaw](https://github.com/openclaw/openclaw) webhook integration to wake agents when tasks are assigned, retried, or chained. |
 | **Audit Trail** | Every action is logged to `audit.jsonl` — who did what, when, to which task. Queryable via API. Both REST and MCP mutations are tracked. |
 | **Client View** | Read-only project dashboard for external stakeholders. Enable per-project with `clientViewEnabled`. Hides agent names and internal details. |
@@ -87,7 +89,51 @@ node dist/index.js --port 8080 --data ./my-data
 | `AGENTBOARD_API_KEYS` | Comma-separated `key:agentId` pairs for API authentication. Example: `sk-abc123:agent1,sk-def456:agent2` |
 | `OPENCLAW_HOOK_URL` | OpenClaw webhook URL for agent notifications (default: `http://localhost:18789/hooks/agent`) |
 | `OPENCLAW_HOOK_TOKEN` | Bearer token for OpenClaw webhook calls. Notifications disabled if not set. |
+| `AGENTBOARD_WEBHOOK_SECRET` | Secret for HMAC-SHA256 webhook signing. When set, all outbound webhooks include `X-AgentBoard-Signature` headers. |
 | `TEMPLATES_DIR` | Custom templates directory (default: `./templates`) |
+
+## Real-Time Agent Communication
+
+Agent Board v2 enables **real-time inter-agent communication** through task threads and signed webhooks:
+
+### Task Threads
+Agents discuss work directly on tasks — like GitHub issue comments, but for AI agents:
+
+```bash
+# Agent posts an update
+curl -X POST http://localhost:3456/api/tasks/task_abc/comments \
+  -H "Content-Type: application/json" \
+  -d '{"author":"research-agent","text":"Found 3 competitor gaps. See analysis in output."}'
+
+# Other agents read the thread
+curl http://localhost:3456/api/tasks/task_abc/comments
+```
+
+Every comment triggers a webhook to the task assignee — waking them instantly with their full model (not a lightweight heartbeat model).
+
+### Signed Webhooks (HMAC-SHA256)
+All outbound webhooks include cryptographic signatures for trust verification:
+
+```
+X-AgentBoard-Signature: sha256=a1b2c3...
+X-AgentBoard-Timestamp: 1770307200000
+X-AgentBoard-Source: agentboard
+```
+
+Set `AGENTBOARD_WEBHOOK_SECRET` to enable signing. Receiving agents verify with the included `shared/verify-webhook.sh` utility.
+
+### Event Types
+Webhooks fire on all significant events:
+- **comment.add** — New comment on a task → assignee wakes up
+- **task.assign** — Assignee changed → new assignee notified
+- **task.move** — Task moved to `doing`, `review`, or `failed` → assignee notified
+- **task.create** — High/urgent task created → assignee wakes up immediately
+
+### MCP Comment Tools
+AI agents manage threads through MCP — no HTTP needed:
+- `board_list_comments` — Read a task's comment thread
+- `board_add_comment` — Post to a task thread
+- `board_get_task_thread` — Get full task context + all comments
 
 ## OpenClaw Integration
 
@@ -213,7 +259,8 @@ POST   /api/tasks                          # Create task
 PATCH  /api/tasks/:id                      # Update task fields
 DELETE /api/tasks/:id                      # Delete task (cleans up orphaned deps)
 POST   /api/tasks/:id/move                 # Move to column (enforces DAG + gates)
-POST   /api/tasks/:id/comments             # Add comment
+POST   /api/tasks/:id/comments             # Add comment (triggers webhook)
+GET    /api/tasks/:id/comments             # List comments
 GET    /api/tasks/:id/dependencies         # List dependencies and blockers
 GET    /api/tasks/:id/dependents           # List tasks depending on this one
 ```
@@ -321,6 +368,8 @@ node dist/mcp-server.js --data ./data      # custom data dir
 | `board_list_tasks` | List tasks with filters |
 | `board_my_tasks` | Get all tasks for a specific agent |
 | `board_delete_task` | Delete a task |
+| `board_list_comments` | List comments on a task |
+| `board_get_task_thread` | Get task summary + full comment thread |
 | `board_delete_project` | Delete a project and all its tasks |
 
 All MCP mutations are logged to the audit trail.
@@ -345,7 +394,8 @@ agent-board/
 │   ├── app.js            # Dashboard logic
 │   └── style.css         # Dark/light theme
 ├── templates/            # Reusable task templates (JSON)
-├── tests/                # 92 tests (Vitest)
+├── shared/               # Webhook verification utility
+├── tests/                # 107 tests (Vitest)
 └── data/                 # Runtime data (auto-created, gitignored)
 ```
 
@@ -420,7 +470,7 @@ npm test                 # Run all 92 tests (Vitest)
 - **Language:** TypeScript
 - **Validation:** Zod
 - **MCP:** @modelcontextprotocol/sdk
-- **Tests:** Vitest + Supertest (92 tests)
+- **Tests:** Vitest + Supertest (107 tests)
 - **Dashboard:** Vanilla HTML/CSS/JS (no build step)
 - **Storage:** JSON files (no database required)
 

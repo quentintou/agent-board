@@ -2,7 +2,7 @@
 # verify-webhook.sh — Verify HMAC-SHA256 signature on AgentBoard webhooks
 # Usage: echo "$BODY" | verify-webhook.sh "$SIGNATURE" "$TIMESTAMP"
 # Returns exit 0 if valid, exit 1 if invalid
-# Reads secret from AGENTBOARD_WEBHOOK_SECRET env or /root/clawd/shared/credentials.json
+# Reads secret from AGENTBOARD_WEBHOOK_SECRET env or ./credentials.json
 
 set -euo pipefail
 
@@ -17,7 +17,7 @@ fi
 # Read secret from env or credentials file
 SECRET="${AGENTBOARD_WEBHOOK_SECRET:-}"
 if [ -z "$SECRET" ]; then
-  CREDS_FILE="/root/clawd/shared/credentials.json"
+  CREDS_FILE="./credentials.json"
   if [ -f "$CREDS_FILE" ]; then
     SECRET=$(node -e "
       const c = require('$CREDS_FILE');
