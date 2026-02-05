@@ -196,6 +196,38 @@ server.tool(
 );
 
 server.tool(
+  "board_list_comments",
+  "List all comments for a task",
+  { taskId: z.string() },
+  async ({ taskId }) => {
+    const task = store.getTask(taskId);
+    if (!task) return { content: [{ type: "text" as const, text: "Task not found" }], isError: true };
+    return { content: [{ type: "text" as const, text: JSON.stringify(task.comments, null, 2) }] };
+  }
+);
+
+server.tool(
+  "board_get_task_thread",
+  "Get task summary with all comments (for agent context)",
+  { taskId: z.string() },
+  async ({ taskId }) => {
+    const task = store.getTask(taskId);
+    if (!task) return { content: [{ type: "text" as const, text: "Task not found" }], isError: true };
+    const thread = {
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      status: task.column,
+      assignee: task.assignee,
+      priority: task.priority,
+      tags: task.tags,
+      comments: task.comments,
+    };
+    return { content: [{ type: "text" as const, text: JSON.stringify(thread, null, 2) }] };
+  }
+);
+
+server.tool(
   "board_list_tasks",
   "List tasks with optional filters",
   {

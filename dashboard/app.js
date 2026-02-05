@@ -332,18 +332,45 @@
   // --- Task Detail Panel ---
   const detailPanel = document.getElementById("detailPanel");
   const detailContent = document.getElementById("detailContent");
+  let threadInterval = null;
+  let currentDetailTaskId = null;
 
   document.getElementById("closeDetail").addEventListener("click", () => {
     detailPanel.classList.remove("open");
+    if (threadInterval) { clearInterval(threadInterval); threadInterval = null; }
+    currentDetailTaskId = null;
   });
+
+  function renderThread(comments) {
+    const threadEl = document.getElementById("threadMessages");
+    if (!threadEl) return;
+    if (!comments.length) {
+      threadEl.innerHTML = '<div class="thread-empty">No comments yet. Start the conversation!</div>';
+      return;
+    }
+    threadEl.innerHTML = comments.map((c) =>
+      `<div class="thread-msg">
+        <div class="thread-msg-header">
+          <span class="thread-msg-author">${esc(c.author)}</span>
+          <span class="thread-msg-time">${new Date(c.at).toLocaleString()}</span>
+        </div>
+        <div class="thread-msg-text">${esc(c.text)}</div>
+      </div>`
+    ).join("");
+    threadEl.scrollTop = threadEl.scrollHeight;
+  }
+
+  async function refreshThread(taskId) {
+    try {
+      const comments = await api("/tasks/" + taskId + "/comments");
+      if (currentDetailTaskId === taskId) renderThread(comments);
+    } catch (e) { /* ignore polling errors */ }
+  }
 
   function openDetail(taskId) {
     const task = state.tasks.find((t) => t.id === taskId);
     if (!task) return;
-
-    const comments = task.comments.map((c) =>
-      `<li><span class="comment-author">${esc(c.author)}</span><span class="comment-time">${new Date(c.at).toLocaleString()}</span><br>${esc(c.text)}</li>`
-    ).join("");
+    currentDetailTaskId = taskId;
 
     detailContent.innerHTML = `
       <h2>${esc(task.title)}</h2>
@@ -354,28 +381,43 @@
       <div class="detail-field"><label>Tags</label><div class="value">${task.tags.map((t) => `<span class="badge badge-tag">${esc(t)}</span>`).join(" ") || "None"}</div></div>
       <div class="detail-field"><label>Created by</label><div class="value">${esc(task.createdBy)}</div></div>
       <div class="detail-field"><label>Created</label><div class="value">${new Date(task.createdAt).toLocaleString()}</div></div>
-      <div class="detail-field">
-        <label>Comments (${task.comments.length})</label>
-        <ul class="comment-list">${comments || "<li>No comments yet</li>"}</ul>
-        <div class="comment-form">
-          <input type="text" id="commentAuthor" placeholder="Author" style="max-width:100px">
-          <input type="text" id="commentText" placeholder="Add comment...">
-          <button class="btn btn-primary" id="addCommentBtn">Post</button>
+      <div class="thread-panel">
+        <label>Thread (${task.comments.length})</label>
+        <div class="thread-messages" id="threadMessages"></div>
+        <div class="thread-input">
+          <input type="text" id="commentAuthor" placeholder="Author" class="thread-author-input">
+          <div class="thread-send-row">
+            <input type="text" id="commentText" placeholder="Type a message..." class="thread-text-input">
+            <button class="btn btn-primary" id="addCommentBtn">Send</button>
+          </div>
         </div>
       </div>
     `;
 
-    document.getElementById("addCommentBtn").addEventListener("click", async () => {
+    renderThread(task.comments);
+
+    // Send comment handler
+    async function sendComment() {
       const author = document.getElementById("commentAuthor").value.trim();
       const text = document.getElementById("commentText").value.trim();
       if (!author || !text) return;
+      document.getElementById("commentText").value = "";
       await api("/tasks/" + taskId + "/comments", {
         method: "POST",
         body: JSON.stringify({ author, text }),
       });
+      await refreshThread(taskId);
       await loadTasks();
-      openDetail(taskId);
+    }
+
+    document.getElementById("addCommentBtn").addEventListener("click", sendComment);
+    document.getElementById("commentText").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendComment(); }
     });
+
+    // Auto-refresh thread every 10 seconds
+    if (threadInterval) clearInterval(threadInterval);
+    threadInterval = setInterval(() => refreshThread(taskId), 10000);
 
     detailPanel.classList.add("open");
   }

@@ -1126,3 +1126,143 @@ describe("Client View", () => {
     expect(res2.status).toBe(200);
   });
 });
+
+// ============================================================
+// REAL-TIME STEP 1: GET Comments Endpoint
+// ============================================================
+
+describe("GET Comments Endpoint", () => {
+  let projectId: string;
+
+  beforeEach(async () => {
+    const { body } = await request(app).post("/api/projects").send({ name: "P" });
+    projectId = body.id;
+  });
+
+  it("GET /api/tasks/:id/comments returns empty array for task with no comments", async () => {
+    const { body: t } = await request(app).post("/api/tasks").send({
+      projectId, title: "T", assignee: "bot",
+    });
+    const res = await request(app).get(`/api/tasks/${t.id}/comments`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("GET /api/tasks/:id/comments returns comments array", async () => {
+    const { body: t } = await request(app).post("/api/tasks").send({
+      projectId, title: "T", assignee: "bot",
+    });
+    await request(app).post(`/api/tasks/${t.id}/comments`).send({ author: "alice", text: "First" });
+    await request(app).post(`/api/tasks/${t.id}/comments`).send({ author: "bob", text: "Second" });
+
+    const res = await request(app).get(`/api/tasks/${t.id}/comments`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].author).toBe("alice");
+    expect(res.body[0].text).toBe("First");
+    expect(res.body[0].at).toBeDefined();
+    expect(res.body[1].author).toBe("bob");
+    expect(res.body[1].text).toBe("Second");
+  });
+
+  it("GET /api/tasks/:id/comments returns 404 for missing task", async () => {
+    const res = await request(app).get("/api/tasks/nope/comments");
+    expect(res.status).toBe(404);
+  });
+});
+
+// ============================================================
+// REAL-TIME STEP 1: Assignee Change Webhook
+// ============================================================
+
+describe("Assignee Change Webhook", () => {
+  let projectId: string;
+
+  beforeEach(async () => {
+    const { body } = await request(app).post("/api/projects").send({ name: "P" });
+    projectId = body.id;
+  });
+
+  it("PATCH /api/tasks/:id with assignee change updates the task", async () => {
+    const { body: t } = await request(app).post("/api/tasks").send({
+      projectId, title: "T", assignee: "agent-a",
+    });
+
+    const res = await request(app).patch(`/api/tasks/${t.id}`).send({ assignee: "agent-b" });
+    expect(res.status).toBe(200);
+    expect(res.body.assignee).toBe("agent-b");
+  });
+
+  it("PATCH /api/tasks/:id without assignee change does not trigger reassign", async () => {
+    const { body: t } = await request(app).post("/api/tasks").send({
+      projectId, title: "T", assignee: "agent-a",
+    });
+
+    // Update title only — same assignee, no webhook should fire
+    const res = await request(app).patch(`/api/tasks/${t.id}`).send({ title: "Updated Title" });
+    expect(res.status).toBe(200);
+    expect(res.body.assignee).toBe("agent-a");
+    expect(res.body.title).toBe("Updated Title");
+  });
+});
+
+// ============================================================
+// REAL-TIME STEP 1: MCP Comment Tools (via store directly)
+// ============================================================
+
+describe("MCP Comment Tools (store-level)", () => {
+  let projectId: string;
+
+  beforeEach(async () => {
+    const { body } = await request(app).post("/api/projects").send({ name: "P" });
+    projectId = body.id;
+  });
+
+  it("list_comments returns comments for a task via GET endpoint", async () => {
+    const { body: t } = await request(app).post("/api/tasks").send({
+      projectId, title: "T", assignee: "bot",
+    });
+    await request(app).post(`/api/tasks/${t.id}/comments`).send({ author: "agent-x", text: "MCP test" });
+
+    const res = await request(app).get(`/api/tasks/${t.id}/comments`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].author).toBe("agent-x");
+    expect(res.body[0].text).toBe("MCP test");
+  });
+
+  it("add_comment via POST and retrieve via GET", async () => {
+    const { body: t } = await request(app).post("/api/tasks").send({
+      projectId, title: "T", assignee: "bot",
+    });
+
+    // Add comment
+    const postRes = await request(app).post(`/api/tasks/${t.id}/comments`).send({
+      author: "mcp-agent", text: "Hello from MCP",
+    });
+    expect(postRes.status).toBe(200);
+
+    // Get comments
+    const getRes = await request(app).get(`/api/tasks/${t.id}/comments`);
+    expect(getRes.body).toHaveLength(1);
+    expect(getRes.body[0].text).toBe("Hello from MCP");
+  });
+
+  it("get_task_thread equivalent: task + comments via GET task", async () => {
+    const { body: t } = await request(app).post("/api/tasks").send({
+      projectId, title: "Thread Task", assignee: "bot", priority: "high", tags: ["test"],
+    });
+    await request(app).post(`/api/tasks/${t.id}/comments`).send({ author: "a", text: "Comment 1" });
+    await request(app).post(`/api/tasks/${t.id}/comments`).send({ author: "b", text: "Comment 2" });
+
+    // GET task returns full task with comments (like get_task_thread)
+    const res = await request(app).get(`/api/tasks/${t.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Thread Task");
+    expect(res.body.priority).toBe("high");
+    expect(res.body.tags).toContain("test");
+    expect(res.body.comments).toHaveLength(2);
+    expect(res.body.comments[0].text).toBe("Comment 1");
+    expect(res.body.comments[1].text).toBe("Comment 2");
+  });
+});

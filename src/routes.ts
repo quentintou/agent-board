@@ -175,19 +175,20 @@ const AGENT_SESSION_MAP: Record<string, string> = {
   "onboarding": "agent:onboarding:main",
   "community": "agent:community:main",
   "ops": "agent:ops:main",
+  "infra-agent": "agent:infra:main",
 };
 
-async function notifyAgent(task: Task, context?: string): Promise<boolean> {
+async function notifyAgent(task: Task, context?: string, event?: string): Promise<boolean> {
   if (!OPENCLAW_HOOK_TOKEN) return false;
-  const sessionKey = AGENT_SESSION_MAP[task.assignee];
-  if (!sessionKey) return false;
+  // Use agent name directly — creates isolated hook session with agent's real model
+  // (not the heartbeat model which would ignore the message)
+  const agentName = task.assignee;
+  if (!agentName) return false;
 
   const message = [
-    `[AgentBoard] Nouvelle task assignée à toi :`,
-    `- **${task.title}** (${task.id})`,
-    `- Priorité: ${task.priority}`,
-    task.description ? `- Brief: ${task.description.slice(0, 500)}` : "",
-    context ? `- Contexte: ${context}` : "",
+    `[AgentBoard] Task: ${task.title} (${task.id})`,
+    context ? `Contexte: ${context}` : "",
+    task.description ? `Brief: ${task.description.slice(0, 300)}` : "",
     ``,
     `Check ton board et traite cette task.`,
   ].filter(Boolean).join("\n");
@@ -200,14 +201,15 @@ async function notifyAgent(task: Task, context?: string): Promise<boolean> {
         "Authorization": `Bearer ${OPENCLAW_HOOK_TOKEN}`,
       },
       body: JSON.stringify({
+        agent: agentName,
         message,
-        sessionKey,
         wakeMode: "now",
+        event: event || undefined,
       }),
     });
     return res.ok;
   } catch (e) {
-    console.error(`[webhook] Failed to notify ${task.assignee}:`, e);
+    console.error(`[webhook] Failed to notify ${agentName}:`, e);
     return false;
   }
 }
@@ -484,7 +486,7 @@ router.post("/tasks", validate(CreateTaskSchema), async (req: Request, res: Resp
 
   // Notify agent only for high/critical priority tasks (routine tasks picked up via heartbeat)
   if (created.column === "todo" && created.assignee && (created.priority === "high" || created.priority === "urgent")) {
-    notifyAgent(created).catch(() => {});
+    notifyAgent(created, undefined, "task.create").catch(() => {});
   }
 
   // Webhook to main disabled (pollutes Quentin's chat)
@@ -501,6 +503,10 @@ router.patch("/tasks/:id", validate(UpdateTaskSchema), async (req: Request, res:
     }
   }
 
+  // Capture previous assignee before update for change detection
+  const taskBefore = store.getTask(req.params.id as string);
+  const previousAssignee = taskBefore?.assignee;
+
   const updated = await store.updateTask(req.params.id as string, req.body);
   if (!updated) return res.status(404).json({ error: "Task not found" });
 
@@ -513,10 +519,10 @@ router.patch("/tasks/:id", validate(UpdateTaskSchema), async (req: Request, res:
     details: `Updated task fields: ${Object.keys(req.body).join(", ")}`,
   });
 
-  // Webhook to main disabled (pollutes Quentin's chat)
-  // if (req.body.assignee || req.body.status || req.body.column) {
-  //   sendTaskUpdateWebhook(updated).catch(() => {});
-  // }
+  // Notify NEW assignee when assignee changes via PATCH
+  if (req.body.assignee && req.body.assignee !== previousAssignee && updated.assignee) {
+    notifyAgent(updated, `Task reassigned to you (was: ${previousAssignee || "unassigned"})`, "task.assign").catch(() => {});
+  }
 
   res.json(updated);
 });
@@ -565,7 +571,20 @@ router.post("/tasks/:id/comments", validate(CreateCommentSchema), async (req: Re
     details: `Comment by ${author}: ${text.slice(0, 100)}`,
   });
 
+  // Notify assignee in real-time via webhook (if comment is from a different agent)
+  if (updated.assignee && updated.assignee !== author) {
+    notifyAgent(updated, `New comment from ${author}: ${text.slice(0, 200)}`, "comment.add").catch(() => {});
+  }
+
   res.json(updated);
+});
+
+// --- GET Comments ---
+
+router.get("/tasks/:id/comments", (req: Request, res: Response) => {
+  const task = store.getTask(req.params.id as string);
+  if (!task) return res.status(404).json({ error: "Task not found" });
+  res.json(task.comments);
 });
 
 // --- Task Dependencies ---
@@ -668,28 +687,33 @@ router.post("/tasks/:id/move", validate(MoveTaskSchema), async (req: Request, re
     details: moveResult.retried ? `Moved to failed, auto-retried` : `Moved from ${fromColumn} to ${column}`,
   });
 
-  // Notify agent for high/critical priority or review feedback
-  if ((column === "todo" || column === "doing") && moveResult.task.assignee && (moveResult.task.priority === "high" || moveResult.task.priority === "urgent" || column === "doing")) {
-    notifyAgent(moveResult.task, column === "doing" ? "Task remise en doing, check les commentaires pour le feedback" : undefined).catch(() => {});
+  // Notify assignee when moved to doing, review, or failed
+  if ((column === "doing" || column === "review" || column === "failed") && moveResult.task.assignee) {
+    const contextMap: Record<string, string> = {
+      doing: "Task remise en doing, check les commentaires pour le feedback",
+      review: "Task moved to review",
+      failed: "Task has failed",
+    };
+    notifyAgent(moveResult.task, contextMap[column], "task.move").catch(() => {});
   }
 
   // Notify on retry
   if (moveResult.retried) {
     const retriedTask = store.getTask(req.params.id as string);
     if (retriedTask) {
-      notifyAgent(retriedTask, `Auto-retry. Check les commentaires pour comprendre l'echec.`).catch(() => {});
+      notifyAgent(retriedTask, `Auto-retry. Check les commentaires pour comprendre l'echec.`, "task.move").catch(() => {});
     }
   }
 
-  // Notify on failed max retries
+  // Notify on failed max retries (alert ops)
   if (column === "failed" && !moveResult.retried) {
     const alertTask = { ...moveResult.task, assignee: "ops" } as Task;
-    notifyAgent(alertTask, `ALERTE: Task "${moveResult.task.title}" a echoue. Agent: ${moveResult.task.assignee}. Intervention manuelle requise.`).catch(() => {});
+    notifyAgent(alertTask, `ALERTE: Task "${moveResult.task.title}" a echoue. Agent: ${moveResult.task.assignee}. Intervention manuelle requise.`, "task.move").catch(() => {});
   }
 
   // Notify on chained task
   if (moveResult.chainedTask) {
-    notifyAgent(moveResult.chainedTask, `Chained from "${moveResult.task.title}" by ${moveResult.task.assignee}`).catch(() => {});
+    notifyAgent(moveResult.chainedTask, `Chained from "${moveResult.task.title}" by ${moveResult.task.assignee}`, "task.create").catch(() => {});
   }
 
   res.json(moveResult);

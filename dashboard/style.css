@@ -451,6 +451,112 @@ header h1 .logo {
   font-size: 13px;
 }
 
+/* --- Thread Panel (chat-style comments) --- */
+.thread-panel {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.thread-panel > label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.thread-messages {
+  flex: 1;
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.thread-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.thread-msg {
+  padding: 8px 12px;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.thread-msg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.thread-msg-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.thread-msg-time {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.thread-msg-text {
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.thread-input {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.thread-author-input {
+  width: 120px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.thread-send-row {
+  display: flex;
+  gap: 8px;
+}
+
+.thread-text-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.thread-text-input:focus,
+.thread-author-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* --- Agent list view --- */
 .agent-grid {
   display: grid;
