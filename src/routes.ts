@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import pathLib from "path";
+import { createHmac } from "crypto";
 import { z } from "zod";
 import * as store from "./store";
 import { generateId, now } from "./utils";
@@ -161,6 +162,24 @@ function loadTemplateFromDir(name: string): any[] | null {
 const OPENCLAW_HOOK_URL = process.env.OPENCLAW_HOOK_URL || "http://localhost:18789/hooks/agent";
 const OPENCLAW_HOOK_TOKEN = process.env.OPENCLAW_HOOK_TOKEN || "";
 
+function getHookToken(): string {
+  return process.env.OPENCLAW_HOOK_TOKEN || OPENCLAW_HOOK_TOKEN;
+}
+
+// --- HMAC Signing ---
+
+function getWebhookSecret(): string {
+  return process.env.AGENTBOARD_WEBHOOK_SECRET || getHookToken();
+}
+
+export function signPayload(body: Record<string, unknown>, secret: string): { signature: string; timestamp: number } {
+  const timestamp = Date.now();
+  const bodyWithTimestamp = { ...body, timestamp };
+  const raw = JSON.stringify(bodyWithTimestamp);
+  const hmac = createHmac("sha256", secret).update(raw).digest("hex");
+  return { signature: `sha256=${hmac}`, timestamp };
+}
+
 // Agent ID -> OpenClaw agent session key mapping
 const AGENT_SESSION_MAP: Record<string, string> = {
   "jarvx": "agent:main:main",
@@ -179,7 +198,8 @@ const AGENT_SESSION_MAP: Record<string, string> = {
 };
 
 async function notifyAgent(task: Task, context?: string, event?: string): Promise<boolean> {
-  if (!OPENCLAW_HOOK_TOKEN) return false;
+  const hookToken = getHookToken();
+  if (!hookToken) return false;
   // Use agent name directly — creates isolated hook session with agent's real model
   // (not the heartbeat model which would ignore the message)
   const agentName = task.assignee;
@@ -194,18 +214,37 @@ async function notifyAgent(task: Task, context?: string, event?: string): Promis
   ].filter(Boolean).join("\n");
 
   try {
+    const basePayload: Record<string, unknown> = {
+      agent: agentName,
+      message,
+      wakeMode: "now",
+      source: "agentboard",
+      taskId: task.id,
+      event: event || undefined,
+    };
+
+    const secret = getWebhookSecret();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${hookToken}`,
+    };
+
+    let finalPayload: Record<string, unknown>;
+
+    if (secret) {
+      const { signature, timestamp } = signPayload(basePayload, secret);
+      finalPayload = { ...basePayload, timestamp, signature };
+      headers["X-AgentBoard-Signature"] = signature;
+      headers["X-AgentBoard-Timestamp"] = String(timestamp);
+      headers["X-AgentBoard-Source"] = "agentboard";
+    } else {
+      finalPayload = basePayload;
+    }
+
     const res = await fetch(OPENCLAW_HOOK_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENCLAW_HOOK_TOKEN}`,
-      },
-      body: JSON.stringify({
-        agent: agentName,
-        message,
-        wakeMode: "now",
-        event: event || undefined,
-      }),
+      headers,
+      body: JSON.stringify(finalPayload),
     });
     return res.ok;
   } catch (e) {

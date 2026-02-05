@@ -5,7 +5,7 @@ import os from "os";
 import express from "express";
 import request from "supertest";
 import { setDataDir } from "../src/store";
-import apiRouter, { setTemplatesDir } from "../src/routes";
+import apiRouter, { setTemplatesDir, signPayload } from "../src/routes";
 import { setAuditDataDir } from "../src/audit";
 
 let tmpDir: string;
@@ -1264,5 +1264,179 @@ describe("MCP Comment Tools (store-level)", () => {
     expect(res.body.comments).toHaveLength(2);
     expect(res.body.comments[0].text).toBe("Comment 1");
     expect(res.body.comments[1].text).toBe("Comment 2");
+  });
+});
+
+// ============================================================
+// STEP 2: HMAC WEBHOOK SIGNING
+// ============================================================
+
+describe("HMAC Webhook Signing", () => {
+  const testSecret = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+
+  it("signPayload returns a sha256= prefixed signature and timestamp", () => {
+    const body = { agent: "eff", message: "hello", wakeMode: "now" };
+    const result = signPayload(body, testSecret);
+    expect(result.signature).toMatch(/^sha256=[a-f0-9]{64}$/);
+    expect(typeof result.timestamp).toBe("number");
+    expect(result.timestamp).toBeGreaterThan(0);
+  });
+
+  it("signPayload produces deterministic output for same input", () => {
+    const body = { agent: "eff", message: "test" };
+    const r1 = signPayload(body, testSecret);
+    // signPayload uses Date.now() so timestamps will differ, but
+    // if we manually verify the HMAC it should be consistent
+    const { createHmac } = require("crypto");
+    const bodyWithTs = { ...body, timestamp: r1.timestamp };
+    const expected = "sha256=" + createHmac("sha256", testSecret)
+      .update(JSON.stringify(bodyWithTs))
+      .digest("hex");
+    expect(r1.signature).toBe(expected);
+  });
+
+  it("signPayload produces different signatures for different bodies", () => {
+    const r1 = signPayload({ agent: "a", msg: "x" }, testSecret);
+    const r2 = signPayload({ agent: "b", msg: "y" }, testSecret);
+    // Signatures differ (different payload content)
+    // Note: timestamps could also differ, reinforcing uniqueness
+    expect(r1.signature).not.toBe(r2.signature);
+  });
+
+  it("signPayload produces different signatures for different secrets", () => {
+    const body = { agent: "eff", message: "same" };
+    const r1 = signPayload(body, testSecret);
+    const r2 = signPayload(body, "different_secret_0000000000000000000000000000000000000000000000");
+    expect(r1.signature).not.toBe(r2.signature);
+  });
+
+  it("webhook includes signature headers when secret is set", async () => {
+    // Set up env for webhook secret
+    const originalSecret = process.env.AGENTBOARD_WEBHOOK_SECRET;
+    const originalToken = process.env.OPENCLAW_HOOK_TOKEN;
+    process.env.AGENTBOARD_WEBHOOK_SECRET = testSecret;
+    process.env.OPENCLAW_HOOK_TOKEN = "test-token";
+
+    // Track the fetch call
+    const originalFetch = globalThis.fetch;
+    let capturedHeaders: Record<string, string> = {};
+    let capturedBody: any = {};
+    let fetchCalled: Promise<void>;
+    let resolveFetch: () => void;
+    fetchCalled = new Promise<void>(r => { resolveFetch = r; });
+    globalThis.fetch = (async (url: any, opts: any) => {
+      capturedHeaders = opts.headers || {};
+      capturedBody = JSON.parse(opts.body);
+      resolveFetch();
+      return { ok: true } as Response;
+    }) as typeof fetch;
+
+    try {
+      // Create project + high priority task (triggers notifyAgent)
+      const { body: p } = await request(app).post("/api/projects").send({ name: "P" });
+      await request(app).post("/api/tasks").send({
+        projectId: p.id,
+        title: "Urgent",
+        assignee: "eff",
+        priority: "high",
+        column: "todo",
+      });
+
+      // Wait for the fire-and-forget fetch to complete
+      await fetchCalled;
+
+      // Verify signing headers present
+      expect(capturedHeaders["X-AgentBoard-Signature"]).toMatch(/^sha256=[a-f0-9]{64}$/);
+      expect(capturedHeaders["X-AgentBoard-Timestamp"]).toBeDefined();
+      expect(Number(capturedHeaders["X-AgentBoard-Timestamp"])).toBeGreaterThan(0);
+      expect(capturedHeaders["X-AgentBoard-Source"]).toBe("agentboard");
+
+      // Verify body contains signature and metadata
+      expect(capturedBody.signature).toMatch(/^sha256=[a-f0-9]{64}$/);
+      expect(capturedBody.timestamp).toBeDefined();
+      expect(capturedBody.source).toBe("agentboard");
+      expect(capturedBody.taskId).toMatch(/^task_/);
+      expect(capturedBody.event).toBe("task.create");
+
+      // Verify signature matches header
+      expect(capturedBody.signature).toBe(capturedHeaders["X-AgentBoard-Signature"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalSecret !== undefined) process.env.AGENTBOARD_WEBHOOK_SECRET = originalSecret;
+      else delete process.env.AGENTBOARD_WEBHOOK_SECRET;
+      if (originalToken !== undefined) process.env.OPENCLAW_HOOK_TOKEN = originalToken;
+      else delete process.env.OPENCLAW_HOOK_TOKEN;
+    }
+  });
+
+  it("webhook body signature is verifiable with HMAC", async () => {
+    const originalSecret = process.env.AGENTBOARD_WEBHOOK_SECRET;
+    const originalToken = process.env.OPENCLAW_HOOK_TOKEN;
+    process.env.AGENTBOARD_WEBHOOK_SECRET = testSecret;
+    process.env.OPENCLAW_HOOK_TOKEN = "test-token";
+
+    const originalFetch = globalThis.fetch;
+    let capturedBody: any = {};
+    let fetchCalled: Promise<void>;
+    let resolveFetch: () => void;
+    fetchCalled = new Promise<void>(r => { resolveFetch = r; });
+    globalThis.fetch = (async (_url: any, opts: any) => {
+      capturedBody = JSON.parse(opts.body);
+      resolveFetch();
+      return { ok: true } as Response;
+    }) as typeof fetch;
+
+    try {
+      const { body: p } = await request(app).post("/api/projects").send({ name: "P" });
+      await request(app).post("/api/tasks").send({
+        projectId: p.id,
+        title: "Verify Me",
+        assignee: "eff",
+        priority: "urgent",
+        column: "todo",
+      });
+
+      // Wait for the fire-and-forget fetch to complete
+      await fetchCalled;
+
+      // Extract signature from body, then verify against body-without-signature
+      const { signature, ...bodyWithoutSig } = capturedBody;
+      const { createHmac } = require("crypto");
+      const expected = "sha256=" + createHmac("sha256", testSecret)
+        .update(JSON.stringify(bodyWithoutSig))
+        .digest("hex");
+      expect(signature).toBe(expected);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalSecret !== undefined) process.env.AGENTBOARD_WEBHOOK_SECRET = originalSecret;
+      else delete process.env.AGENTBOARD_WEBHOOK_SECRET;
+      if (originalToken !== undefined) process.env.OPENCLAW_HOOK_TOKEN = originalToken;
+      else delete process.env.OPENCLAW_HOOK_TOKEN;
+    }
+  });
+
+  it("webhook works without secret (graceful degradation)", async () => {
+    const originalSecret = process.env.AGENTBOARD_WEBHOOK_SECRET;
+    const originalToken = process.env.OPENCLAW_HOOK_TOKEN;
+    delete process.env.AGENTBOARD_WEBHOOK_SECRET;
+    process.env.OPENCLAW_HOOK_TOKEN = "";
+
+    try {
+      // Should not crash — notifyAgent returns false when no token
+      const { body: p } = await request(app).post("/api/projects").send({ name: "P" });
+      const res = await request(app).post("/api/tasks").send({
+        projectId: p.id,
+        title: "No Secret",
+        assignee: "eff",
+        priority: "high",
+        column: "todo",
+      });
+      expect(res.status).toBe(201);
+    } finally {
+      if (originalSecret !== undefined) process.env.AGENTBOARD_WEBHOOK_SECRET = originalSecret;
+      else delete process.env.AGENTBOARD_WEBHOOK_SECRET;
+      if (originalToken !== undefined) process.env.OPENCLAW_HOOK_TOKEN = originalToken;
+      else delete process.env.OPENCLAW_HOOK_TOKEN;
+    }
   });
 });
