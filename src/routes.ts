@@ -197,11 +197,20 @@ const AGENT_SESSION_MAP: Record<string, string> = {
   "infra-agent": "agent:infra:main",
 };
 
+// Map board assignee names to gateway agent IDs
+function resolveAgentId(assignee: string): string {
+  const sessionKey = AGENT_SESSION_MAP[assignee];
+  if (sessionKey) {
+    // Extract agent ID from "agent:{id}:main" format
+    const parts = sessionKey.split(":");
+    return parts.length >= 2 ? parts[1] : assignee;
+  }
+  return assignee;
+}
+
 async function notifyAgent(task: Task, context?: string, event?: string): Promise<boolean> {
   const hookToken = getHookToken();
   if (!hookToken) return false;
-  // Use agent name directly — creates isolated hook session with agent's real model
-  // (not the heartbeat model which would ignore the message)
   const agentName = task.assignee;
   if (!agentName) return false;
 
@@ -214,8 +223,9 @@ async function notifyAgent(task: Task, context?: string, event?: string): Promis
   ].filter(Boolean).join("\n");
 
   try {
+    const resolvedAgent = resolveAgentId(agentName);
     const basePayload: Record<string, unknown> = {
-      agent: agentName,
+      agent: resolvedAgent,
       message,
       wakeMode: "now",
       source: "agentboard",
