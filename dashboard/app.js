@@ -82,6 +82,18 @@
     input.onkeydown = (e) => { if (e.key === "Enter") document.getElementById("apiKeySave").click(); };
   }
 
+
+  // --- Description renderer (Markdown via marked.js) ---
+  function renderDescription(text) {
+    if (!text) return '<em style="color:var(--text-muted)">No description</em>';
+    if (typeof marked !== "undefined") {
+      return marked.parse(text, { breaks: true, gfm: true });
+    }
+    // Fallback if marked not loaded
+    return text.split("
+").map(esc).join("<br>");
+  }
+
   // --- API helpers ---
   async function api(path, opts) {
     const res = await fetch(API + path, {
@@ -322,7 +334,7 @@
     return `
       <div class="card ${overdueClass} ${blockers.length ? "card-blocked" : ""}" draggable="true" data-id="${task.id}">
         <div class="card-title">${lockHtml ? lockHtml + " " : ""}${esc(task.title)}</div>
-        ${task.description ? `<div class="card-desc">${esc(task.description)}</div>` : ""}
+        ${task.description ? `<div class="card-desc">${esc(task.description.split("\n")[0])}</div>` : ""}
         <div class="card-meta">
           ${task.assignee ? `<span class="badge badge-assignee">${esc(task.assignee)}</span>` : ""}
           <span class="badge ${priorityClass}">${task.priority}</span>
@@ -436,10 +448,15 @@
       <div class="detail-field"><label>Status</label><div class="value"><span class="badge" style="background:var(--col-${task.column});color:#fff">${task.column}</span></div></div>
       <div class="detail-field"><label>Assignee</label><div class="value">${esc(task.assignee || "Unassigned")}</div></div>
       <div class="detail-field"><label>Priority</label><div class="value"><span class="badge badge-priority-${task.priority}">${task.priority}</span></div></div>
-      <div class="detail-field"><label>Description</label><div class="value">${esc(task.description || "No description")}</div></div>
+      <div class="detail-field detail-field--desc"><label>Description</label><div class="value desc-content">${renderDescription(task.description)}</div></div>
       <div class="detail-field"><label>Tags</label><div class="value">${task.tags.map((t) => `<span class="badge badge-tag">${esc(t)}</span>`).join(" ") || "None"}</div></div>
       <div class="detail-field"><label>Created by</label><div class="value">${esc(task.createdBy)}</div></div>
       <div class="detail-field"><label>Created</label><div class="value">${new Date(task.createdAt).toLocaleString()}</div></div>
+      <div style="display:flex;justify-content:flex-end;margin:4px 0 12px">
+        <button onclick="document.getElementById('detailPanel').classList.toggle('fullscreen')" 
+          style="font-size:.8em;padding:4px 10px;border:1px solid var(--border,#ddd);border-radius:4px;background:transparent;cursor:pointer;color:var(--text-muted,#666)"
+          title="Vollbild umschalten">⛶ Fullscreen</button>
+      </div>
       <div class="thread-panel">
         <label>Thread (${task.comments.length})</label>
         <div class="thread-messages" id="threadMessages"></div>
