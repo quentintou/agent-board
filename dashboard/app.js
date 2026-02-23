@@ -30,12 +30,71 @@
   });
   initTheme();
 
+  // API Key Button
+  const apiKeyBtn = document.getElementById("apiKeyBtn");
+  if (apiKeyBtn) {
+    apiKeyBtn.addEventListener("click", () => showApiKeyModal(() => {
+      loadProjects().then(loadTasks).then(loadAgents).then(render);
+    }));
+  }
+
+  // --- API Key Auth ---
+  function getApiKey() {
+    return localStorage.getItem("ab-api-key") || "";
+  }
+  function getAuthHeader() {
+    const key = getApiKey();
+    return key ? { "X-API-Key": key } : {};
+  }
+  function showApiKeyModal(onSave) {
+    let modal = document.getElementById("apiKeyModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "apiKeyModal";
+      modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999";
+      modal.innerHTML = `
+        <div style="background:var(--bg-card,#fff);border-radius:8px;padding:24px;width:400px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+          <h3 style="margin:0 0 8px">🔑 API Key erforderlich</h3>
+          <p style="margin:0 0 16px;color:var(--text-muted,#666);font-size:.9em">
+            Agent Board ist mit API-Key-Authentifizierung konfiguriert.<br>
+            Gib deinen persönlichen API-Key ein:
+          </p>
+          <input id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off"
+            style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:1em;margin-bottom:12px">
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button id="apiKeySave" style="padding:8px 20px;background:#4F46E5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.95em">Speichern</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+    }
+    modal.style.display = "flex";
+    const input = document.getElementById("apiKeyInput");
+    const existing = getApiKey();
+    if (existing) input.value = existing;
+    input.focus();
+    document.getElementById("apiKeySave").onclick = () => {
+      const val = input.value.trim();
+      if (!val) return;
+      localStorage.setItem("ab-api-key", val);
+      modal.style.display = "none";
+      if (onSave) onSave();
+    };
+    input.onkeydown = (e) => { if (e.key === "Enter") document.getElementById("apiKeySave").click(); };
+  }
+
   // --- API helpers ---
   async function api(path, opts) {
     const res = await fetch(API + path, {
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
       ...opts,
     });
+    if (res.status === 401) {
+      return new Promise((resolve) => {
+        showApiKeyModal(() => {
+          api(path, opts).then(resolve);
+        });
+      });
+    }
     return res.json();
   }
 
