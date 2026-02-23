@@ -408,7 +408,6 @@
   const fullscreenBtn = document.getElementById("fullscreenDetail");
   function toggleFullscreen() {
     detailPanel.classList.toggle("fullscreen");
-    fullscreenBtn.innerHTML = detailPanel.classList.contains("fullscreen") ? "&#x29C9;" : "&#x26F6;";
     fullscreenBtn.title = detailPanel.classList.contains("fullscreen") ? "Vollbild verlassen (F)" : "Vollbild (F)";
   }
   fullscreenBtn.addEventListener("click", toggleFullscreen);
@@ -418,13 +417,11 @@
     }
     if (e.key === "Escape" && detailPanel.classList.contains("fullscreen")) {
       detailPanel.classList.remove("fullscreen");
-      fullscreenBtn.innerHTML = "&#x26F6;";
       fullscreenBtn.title = "Vollbild (F)";
     }
   });
   document.getElementById("closeDetail").addEventListener("click", () => {
     detailPanel.classList.remove("open", "fullscreen");
-    fullscreenBtn.innerHTML = "&#x26F6;";
     fullscreenBtn.title = "Vollbild (F)";
     if (threadInterval) { clearInterval(threadInterval); threadInterval = null; }
     currentDetailTaskId = null;
