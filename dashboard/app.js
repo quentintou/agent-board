@@ -90,8 +90,7 @@
       return marked.parse(text, { breaks: true, gfm: true });
     }
     // Fallback if marked not loaded
-    return text.split("
-").map(esc).join("<br>");
+    return text.split("\n").map(esc).join("<br>");
   }
 
   // --- API helpers ---
