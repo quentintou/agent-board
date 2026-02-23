@@ -405,8 +405,25 @@
   let threadInterval = null;
   let currentDetailTaskId = null;
 
+  const fullscreenBtn = document.getElementById("fullscreenDetail");
+  function toggleFullscreen() {
+    detailPanel.classList.toggle("fullscreen");
+    fullscreenBtn.innerHTML = detailPanel.classList.contains("fullscreen") ? "&#x2715; Exit" : "&#x26F6;";
+    fullscreenBtn.title = detailPanel.classList.contains("fullscreen") ? "Vollbild verlassen (F)" : "Vollbild (F)";
+  }
+  fullscreenBtn.addEventListener("click", toggleFullscreen);
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey) {
+      if (detailPanel.classList.contains("open")) { e.preventDefault(); toggleFullscreen(); }
+    }
+    if (e.key === "Escape" && detailPanel.classList.contains("fullscreen")) {
+      detailPanel.classList.remove("fullscreen");
+      fullscreenBtn.innerHTML = "&#x26F6;";
+    }
+  });
   document.getElementById("closeDetail").addEventListener("click", () => {
-    detailPanel.classList.remove("open");
+    detailPanel.classList.remove("open", "fullscreen");
+    fullscreenBtn.innerHTML = "&#x26F6;";
     if (threadInterval) { clearInterval(threadInterval); threadInterval = null; }
     currentDetailTaskId = null;
   });
@@ -451,11 +468,6 @@
       <div class="detail-field"><label>Tags</label><div class="value">${task.tags.map((t) => `<span class="badge badge-tag">${esc(t)}</span>`).join(" ") || "None"}</div></div>
       <div class="detail-field"><label>Created by</label><div class="value">${esc(task.createdBy)}</div></div>
       <div class="detail-field"><label>Created</label><div class="value">${new Date(task.createdAt).toLocaleString()}</div></div>
-      <div style="display:flex;justify-content:flex-end;margin:4px 0 12px">
-        <button onclick="document.getElementById('detailPanel').classList.toggle('fullscreen')" 
-          style="font-size:.8em;padding:4px 10px;border:1px solid var(--border,#ddd);border-radius:4px;background:transparent;cursor:pointer;color:var(--text-muted,#666)"
-          title="Vollbild umschalten">⛶ Fullscreen</button>
-      </div>
       <div class="thread-panel">
         <label>Thread (${task.comments.length})</label>
         <div class="thread-messages" id="threadMessages"></div>
