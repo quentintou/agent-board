@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Board</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
 </head>
 <body>
   <header>
@@ -15,6 +16,7 @@
         <button class="tab" data-view="agents">Agents</button>
         <button class="tab" data-view="stats">Stats</button>
       </div>
+      <button class="theme-toggle" id="apiKeyBtn" title="API Key konfigurieren" style="margin-right:4px">&#128273;</button>
       <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">&#9790;</button>
     </div>
   </header>
@@ -37,7 +39,10 @@
 
   <!-- Task detail panel -->
   <div class="detail-panel" id="detailPanel">
-    <button class="btn" id="closeDetail" style="float:right">&#x2715;</button>
+    <div class="detail-panel-header">
+      <button class="btn icon-btn" id="fullscreenDetail" title="Vollbild (F)">&#x26F6;</button>
+      <button class="btn icon-btn" id="closeDetail" title="Schließen (Esc)">&#x2715;</button>
+    </div>
     <div id="detailContent"></div>
   </div>
 

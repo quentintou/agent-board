@@ -30,12 +30,82 @@
   });
   initTheme();
 
+  // API Key Button
+  const apiKeyBtn = document.getElementById("apiKeyBtn");
+  if (apiKeyBtn) {
+    apiKeyBtn.addEventListener("click", () => showApiKeyModal(() => {
+      loadProjects().then(loadTasks).then(loadAgents).then(render);
+    }));
+  }
+
+  // --- API Key Auth ---
+  function getApiKey() {
+    return localStorage.getItem("ab-api-key") || "";
+  }
+  function getAuthHeader() {
+    const key = getApiKey();
+    return key ? { "X-API-Key": key } : {};
+  }
+  function showApiKeyModal(onSave) {
+    let modal = document.getElementById("apiKeyModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "apiKeyModal";
+      modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999";
+      modal.innerHTML = `
+        <div style="background:var(--bg-card,#fff);border-radius:8px;padding:24px;width:400px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+          <h3 style="margin:0 0 8px">🔑 API Key erforderlich</h3>
+          <p style="margin:0 0 16px;color:var(--text-muted,#666);font-size:.9em">
+            Agent Board ist mit API-Key-Authentifizierung konfiguriert.<br>
+            Gib deinen persönlichen API-Key ein:
+          </p>
+          <input id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off"
+            style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:1em;margin-bottom:12px">
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button id="apiKeySave" style="padding:8px 20px;background:#4F46E5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.95em">Speichern</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+    }
+    modal.style.display = "flex";
+    const input = document.getElementById("apiKeyInput");
+    const existing = getApiKey();
+    if (existing) input.value = existing;
+    input.focus();
+    document.getElementById("apiKeySave").onclick = () => {
+      const val = input.value.trim();
+      if (!val) return;
+      localStorage.setItem("ab-api-key", val);
+      modal.style.display = "none";
+      if (onSave) onSave();
+    };
+    input.onkeydown = (e) => { if (e.key === "Enter") document.getElementById("apiKeySave").click(); };
+  }
+
+
+  // --- Description renderer (Markdown via marked.js) ---
+  function renderDescription(text) {
+    if (!text) return '<em style="color:var(--text-muted)">No description</em>';
+    if (typeof marked !== "undefined") {
+      return marked.parse(text, { breaks: true, gfm: true });
+    }
+    // Fallback if marked not loaded
+    return text.split("\n").map(esc).join("<br>");
+  }
+
   // --- API helpers ---
   async function api(path, opts) {
     const res = await fetch(API + path, {
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeader() },
       ...opts,
     });
+    if (res.status === 401) {
+      return new Promise((resolve) => {
+        showApiKeyModal(() => {
+          api(path, opts).then(resolve);
+        });
+      });
+    }
     return res.json();
   }
 
@@ -263,7 +333,7 @@
     return `
       <div class="card ${overdueClass} ${blockers.length ? "card-blocked" : ""}" draggable="true" data-id="${task.id}">
         <div class="card-title">${lockHtml ? lockHtml + " " : ""}${esc(task.title)}</div>
-        ${task.description ? `<div class="card-desc">${esc(task.description)}</div>` : ""}
+        ${task.description ? `<div class="card-desc">${esc(task.description.split("\n")[0])}</div>` : ""}
         <div class="card-meta">
           ${task.assignee ? `<span class="badge badge-assignee">${esc(task.assignee)}</span>` : ""}
           <span class="badge ${priorityClass}">${task.priority}</span>
@@ -335,8 +405,24 @@
   let threadInterval = null;
   let currentDetailTaskId = null;
 
+  const fullscreenBtn = document.getElementById("fullscreenDetail");
+  function toggleFullscreen() {
+    detailPanel.classList.toggle("fullscreen");
+    fullscreenBtn.title = detailPanel.classList.contains("fullscreen") ? "Vollbild verlassen (F)" : "Vollbild (F)";
+  }
+  fullscreenBtn.addEventListener("click", toggleFullscreen);
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey) {
+      if (detailPanel.classList.contains("open")) { e.preventDefault(); toggleFullscreen(); }
+    }
+    if (e.key === "Escape" && detailPanel.classList.contains("fullscreen")) {
+      detailPanel.classList.remove("fullscreen");
+      fullscreenBtn.title = "Vollbild (F)";
+    }
+  });
   document.getElementById("closeDetail").addEventListener("click", () => {
-    detailPanel.classList.remove("open");
+    detailPanel.classList.remove("open", "fullscreen");
+    fullscreenBtn.title = "Vollbild (F)";
     if (threadInterval) { clearInterval(threadInterval); threadInterval = null; }
     currentDetailTaskId = null;
   });
@@ -377,7 +463,7 @@
       <div class="detail-field"><label>Status</label><div class="value"><span class="badge" style="background:var(--col-${task.column});color:#fff">${task.column}</span></div></div>
       <div class="detail-field"><label>Assignee</label><div class="value">${esc(task.assignee || "Unassigned")}</div></div>
       <div class="detail-field"><label>Priority</label><div class="value"><span class="badge badge-priority-${task.priority}">${task.priority}</span></div></div>
-      <div class="detail-field"><label>Description</label><div class="value">${esc(task.description || "No description")}</div></div>
+      <div class="detail-field detail-field--desc"><label>Description</label><div class="value desc-content">${renderDescription(task.description)}</div></div>
       <div class="detail-field"><label>Tags</label><div class="value">${task.tags.map((t) => `<span class="badge badge-tag">${esc(t)}</span>`).join(" ") || "None"}</div></div>
       <div class="detail-field"><label>Created by</label><div class="value">${esc(task.createdBy)}</div></div>
       <div class="detail-field"><label>Created</label><div class="value">${new Date(task.createdAt).toLocaleString()}</div></div>
