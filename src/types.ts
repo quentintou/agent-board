@@ -4,6 +4,7 @@ export interface Project {
   status: "active" | "archived";
   owner: string;
   description: string;
+  columns?: ColumnDef[];
   clientViewEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -15,7 +16,23 @@ export interface Comment {
   at: string;
 }
 
-export type TaskColumn = "backlog" | "todo" | "doing" | "review" | "done" | "failed";
+export interface ColumnDef {
+  id: string;
+  label: string;
+  color: string;
+}
+
+export const DEFAULT_COLUMNS: ColumnDef[] = [
+  { id: "icebox", label: "Icebox", color: "#64748b" },
+  { id: "backlog", label: "Backlog", color: "#94a3b8" },
+  { id: "todo", label: "To Do", color: "#6366f1" },
+  { id: "doing", label: "Doing", color: "#f59e0b" },
+  { id: "review", label: "Review", color: "#a855f7" },
+  { id: "done", label: "Done", color: "#22c55e" },
+  { id: "failed", label: "Failed", color: "#ef4444" },
+];
+
+export type TaskColumn = string;
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
 export interface NextTask {

@@ -232,6 +232,22 @@ export async function addComment(taskId: string, comment: { author: string; text
   return result;
 }
 
+export async function deleteComment(taskId: string, commentIndex: number): Promise<Task | undefined> {
+  let result: Task | undefined;
+  await withLock<Task>("tasks.json", (tasks) => {
+    const idx = tasks.findIndex(t => t.id === taskId);
+    if (idx === -1 || commentIndex < 0 || commentIndex >= tasks[idx].comments.length) {
+      result = undefined;
+      return tasks;
+    }
+    tasks[idx].comments.splice(commentIndex, 1);
+    tasks[idx].updatedAt = new Date().toISOString();
+    result = tasks[idx];
+    return tasks;
+  });
+  return result;
+}
+
 // --- Agents ---
 
 export function getAgents(): Agent[] {

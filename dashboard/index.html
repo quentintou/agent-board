@@ -15,13 +15,24 @@
         <button class="tab" data-view="agents">Agents</button>
         <button class="tab" data-view="stats">Stats</button>
       </div>
+      <button class="zoom-btn" id="zoomOut" title="Smaller">A−</button>
+      <button class="zoom-btn" id="zoomIn" title="Bigger">A+</button>
       <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">&#9790;</button>
+      <div class="lang-switcher" id="langSwitcher">
+        <button class="lang-btn" id="langBtn" title="Language">&#127760;</button>
+        <div class="lang-dropdown" id="langDropdown">
+          <button class="lang-option" data-lang="en">English</button>
+          <button class="lang-option" data-lang="ca">Catala</button>
+          <button class="lang-option" data-lang="es">Espanol</button>
+        </div>
+      </div>
     </div>
   </header>
 
   <div class="project-bar" id="projectBar">
     <select id="projectSelect"><option value="">Loading...</option></select>
     <select id="agentFilter"><option value="">All Agents</option></select>
+    <input type="text" id="searchInput" placeholder="Search tasks..." autocomplete="off">
     <button id="newProjectBtn">+ Project</button>
     <button id="newTaskBtn">+ Task</button>
   </div>

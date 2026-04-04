@@ -5,7 +5,7 @@ import { createHmac } from "crypto";
 import { z } from "zod";
 import * as store from "./store";
 import { generateId, now } from "./utils";
-import { Task, TaskColumn, TaskPriority, NextTask, AgentStats, BoardStats } from "./types";
+import { Task, TaskColumn, TaskPriority, NextTask, AgentStats, BoardStats, DEFAULT_COLUMNS } from "./types";
 import { moveTask } from "./services";
 import { appendAuditLog, readAuditLog } from "./audit";
 import {
@@ -316,13 +316,14 @@ router.get("/projects/:id", (req: Request, res: Response) => {
 });
 
 router.post("/projects", validate(CreateProjectSchema), async (req: Request, res: Response) => {
-  const { name, owner, description, clientViewEnabled } = req.body;
+  const { name, owner, description, columns, clientViewEnabled } = req.body;
   const project = await store.createProject({
     id: generateId("proj"),
     name,
     status: "active",
     owner: owner || "unknown",
     description: description || "",
+    columns: columns || [...DEFAULT_COLUMNS],
     clientViewEnabled: clientViewEnabled || false,
     createdAt: now(),
     updatedAt: now(),
@@ -516,7 +517,7 @@ router.post("/tasks", validate(CreateTaskSchema), async (req: Request, res: Resp
     inputPath: inputPath || undefined,
     outputPath: outputPath || undefined,
     requiresReview: requiresReview || false,
-    maxRetries: maxRetries ?? 2,
+    maxRetries: maxRetries ?? 0,
     retryCount: 0,
     startedAt: col === "doing" ? now() : undefined,
     createdAt: now(),
@@ -634,6 +635,14 @@ router.get("/tasks/:id/comments", (req: Request, res: Response) => {
   const task = store.getTask(req.params.id as string);
   if (!task) return res.status(404).json({ error: "Task not found" });
   res.json(task.comments);
+});
+
+router.delete("/tasks/:id/comments/:index", async (req: Request, res: Response) => {
+  const index = parseInt(req.params.index as string, 10);
+  if (isNaN(index)) return res.status(400).json({ error: "Invalid comment index" });
+  const updated = await store.deleteComment(req.params.id as string, index);
+  if (!updated) return res.status(404).json({ error: "Task or comment not found" });
+  res.json(updated);
 });
 
 // --- Task Dependencies ---
