@@ -1,6 +1,6 @@
 import * as store from "./store";
 import { generateId, now } from "./utils";
-import { Task, TaskColumn } from "./types";
+import { Task, TaskColumn, DEFAULT_COLUMNS } from "./types";
 
 export interface MoveResult {
   task: Task;
@@ -9,14 +9,20 @@ export interface MoveResult {
   error?: string;
 }
 
-const VALID_COLUMNS: TaskColumn[] = ["backlog", "todo", "doing", "review", "done", "failed"];
+function getValidColumns(projectId: string): string[] {
+  const project = store.getProject(projectId);
+  const columns = project?.columns?.length ? project.columns : DEFAULT_COLUMNS;
+  return columns.map(c => c.id);
+}
 
 export async function moveTask(taskId: string, column: TaskColumn): Promise<MoveResult | { error: string; requiresReview?: boolean }> {
   if (!column) return { error: "column is required" };
-  if (!VALID_COLUMNS.includes(column)) return { error: `column must be one of: ${VALID_COLUMNS.join(", ")}` };
 
   const current = store.getTask(taskId);
   if (!current) return { error: "Task not found" };
+
+  const validColumns = getValidColumns(current.projectId);
+  if (!validColumns.includes(column)) return { error: `column must be one of: ${validColumns.join(", ")}` };
 
   // Dependency gate: when moving to "doing", check all dependencies are in "done"
   if (column === "doing" && current.dependencies.length > 0) {

@@ -1,7 +1,13 @@
 import { z } from "zod";
 
-const TaskColumnSchema = z.enum(["backlog", "todo", "doing", "review", "done", "failed"]);
+const TaskColumnSchema = z.string().min(1);
 const TaskPrioritySchema = z.enum(["low", "medium", "high", "urgent"]);
+
+const ColumnDefSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  color: z.string().min(1),
+});
 
 const NextTaskSchema = z.object({
   title: z.string(),
@@ -56,6 +62,7 @@ export const CreateProjectSchema = z.object({
   name: z.string().min(1),
   owner: z.string().optional(),
   description: z.string().optional(),
+  columns: z.array(ColumnDefSchema).optional(),
   clientViewEnabled: z.boolean().optional(),
 });
 
@@ -76,5 +83,6 @@ export const UpdateProjectSchema = z.object({
   status: z.enum(["active", "archived"]).optional(),
   owner: z.string().optional(),
   description: z.string().optional(),
+  columns: z.array(ColumnDefSchema).optional(),
   clientViewEnabled: z.boolean().optional(),
 });

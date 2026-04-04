@@ -90,7 +90,7 @@ server.tool(
     createdBy: z.string().optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
     tags: z.array(z.string()).optional(),
-    column: z.enum(["backlog", "todo", "doing", "review", "done", "failed"]).optional(),
+    column: z.string().optional(),
   },
   async ({ projectId, title, description, assignee, createdBy, priority, tags, column }) => {
     const col: TaskColumn = column || "backlog";
@@ -134,7 +134,7 @@ server.tool(
     assignee: z.string().optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
     tags: z.array(z.string()).optional(),
-    column: z.enum(["backlog", "todo", "doing", "review", "done", "failed"]).optional(),
+    column: z.string().optional(),
   },
   async ({ id, ...updates }) => {
     const task = await store.updateTask(id, updates);
@@ -153,8 +153,8 @@ server.tool(
 
 server.tool(
   "board_move_task",
-  "Move a task to a different column (backlog, todo, doing, review, done, failed)",
-  { id: z.string(), column: z.enum(["backlog", "todo", "doing", "review", "done", "failed"]) },
+  "Move a task to a different column (valid columns depend on project configuration)",
+  { id: z.string(), column: z.string() },
   async ({ id, column }) => {
     const taskBefore = store.getTask(id);
     const result = await moveTask(id, column);
