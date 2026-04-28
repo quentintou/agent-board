@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/quentintou-agent-board-badge.png)](https://mseep.ai/app/quentintou-agent-board)
+
 <p align="center">
   <h1 align="center">🎯 Agent Board</h1>
   <p align="center">
